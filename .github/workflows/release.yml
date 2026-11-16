@@ -1,5 +1,5 @@
 # Builds Digonto Studio WITH every Digonto program inside (one download, one runtime) on GitHub's own computers.
-#   Linux .deb, macOS .dmg (Apple silicon: M1 and newer), Windows .exe installer.
+#   Linux .deb, macOS .dmg (Apple silicon and Intel), Windows .exe installer.
 # The programs are taken from their own repositories (latest version of each).
 # Start it: push a tag like v2.9.0  or press "Run workflow" on the Actions page.
 name: Release
@@ -24,6 +24,7 @@ jobs:
           - os: ubuntu-24.04      # the Qt libraries need Ubuntu 24.04 / Debian 13 or newer
           - os: windows-latest
           - os: macos-14
+          - os: macos-15-intel    # Intel Macs
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +44,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           REQ=""
-          for d in src/digonto-*; do REQ="$REQ -r $d/requirements.txt"; done
+          for d in src/digonto-*; do
+            f=$d/requirements.txt
+            if [ "$RUNNER_OS" = "macOS" ] && [ "$RUNNER_ARCH" = "X64" ] && [ -f $d/requirements-macos-intel.txt ]; then f=$d/requirements-macos-intel.txt; fi
+            REQ="$REQ -r $f"
+          done
           python -m pip install --require-hashes $REQ
           python -m pip install pyinstaller==6.22.3
       - name: Inno Setup (Windows installer maker)
