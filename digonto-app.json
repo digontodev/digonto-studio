@@ -1,0 +1,32 @@
+{
+  "slug": "digonto-studio",
+  "name": "Digonto Studio",
+  "version": "2.8.8",
+  "comment": "The one Digonto icon: opens every Digonto program in its own window",
+  "entry": "digonto_studio.py",
+  "files": [
+    "digonto_studio.py",
+    "digonto_ui.py",
+    "requirements.txt",
+    "assets",
+    "README.txt"
+  ],
+  "requirements": "requirements.txt",
+  "check": "import PySide6.QtWidgets",
+  "needs_tk": false,
+  "apt": [
+    "libxcb-cursor0"
+  ],
+  "macos_min": 11,
+  "desktop_icon": true,
+  "bundle": true,
+  "categories": "Graphics;Office;Utility;",
+  "keywords": "digonto;studio;launcher;",
+  "wm_class": "digonto-studio",
+  "mime": [],
+  "legacy": {
+    "linux": [],
+    "darwin": [],
+    "windows": []
+  }
+}
