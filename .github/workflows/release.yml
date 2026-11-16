@@ -23,11 +23,10 @@ jobs:
         include:
           - os: ubuntu-24.04      # the Qt libraries need Ubuntu 24.04 / Debian 13 or newer
           - os: windows-latest
-          - os: macos-15
-          - os: macos-15-intel    # Intel Macs
+          - os: macos-15-intel    # all Macs: runs natively on Intel, through Rosetta 2 on Apple silicon
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: src/digonto-studio
       - name: Get every program
@@ -36,7 +35,7 @@ jobs:
           for a in $APPS; do
             git clone --depth 1 "https://github.com/${{ github.repository_owner }}/$a.git" "src/$a"
           done
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Libraries (exact versions, SHA-256 checked)
@@ -58,7 +57,7 @@ jobs:
       - name: Build
         shell: bash
         run: python src/digonto-studio/packaging/build.py --root src --apps all --package digonto-studio --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: digonto-studio-${{ matrix.os }}
           path: dist/*
