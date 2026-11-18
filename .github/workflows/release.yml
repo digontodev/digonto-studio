@@ -70,8 +70,15 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: python -m pip install "dmgbuild>=1.6,<2"
+      - name: Offline AI (background removal helper for this system, plus the Apple-chip one on macOS)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash src/digonto-studio/packaging/ai/build-ai-ci.sh "$GITHUB_WORKSPACE/ai"
       - name: Build
         shell: bash
+        env:
+          DIGONTO_AI_DIR: ${{ github.workspace }}/ai
         run: python src/digonto-studio/packaging/build.py --root src --apps all --package digonto-studio --out dist
       - name: Fixed-name copy (stable download link for digonto.dev)
         shell: bash

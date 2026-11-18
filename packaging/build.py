@@ -168,6 +168,19 @@ def freeze(apps, slugs, pkg, work):
     return out
 
 
+def add_ai(frozen):
+    """the offline AI (background removal) next to the programs: Contents/Resources/ai on macOS, _internal/ai
+    elsewhere. Built by packaging/ai/build-ai-ci.sh; the folder is given in DIGONTO_AI_DIR."""
+    src = os.environ.get("DIGONTO_AI_DIR")
+    if not src or not os.path.isdir(src):
+        print("no AI folder (DIGONTO_AI_DIR) - building without AI background removal")
+        return
+    dst = os.path.join(frozen, "Contents", "Resources", "ai") if SYS == "Darwin" else os.path.join(frozen, "_internal", "ai")
+    shutil.rmtree(dst, ignore_errors=True)
+    shutil.copytree(src, dst, symlinks=True)
+    print("AI added:", dst, sorted(os.listdir(dst)))
+
+
 # ---------------------------------------------------------------- Linux .deb
 def build_deb(apps, slugs, pkg, frozen, outdir):
     main = apps[pkg]
@@ -643,6 +656,8 @@ def main():
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(work)
     frozen = freeze(apps, slugs, pkg, work)
+    if pkg == STUDIO:
+        add_ai(frozen)
     if a.freeze_only:
         print(frozen)
         return

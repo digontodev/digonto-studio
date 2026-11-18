@@ -13,6 +13,38 @@ import sys
 import time
 
 MAC, WIN = sys.platform == "darwin", os.name == "nt"
+
+
+def apple_chip():
+    """True on M1/M2/M3/M4 Macs - also when this program itself runs through Rosetta"""
+    if not MAC:
+        return False
+    try:
+        r = subprocess.run(["sysctl", "-n", "hw.optional.arm64"], capture_output=True, text=True, timeout=5)
+        return r.stdout.strip() == "1"
+    except Exception:                                    # noqa: BLE001
+        return False
+
+
+def ai_dir_of(bundle):
+    for d in (os.path.join(bundle, "Contents", "Resources", "ai"), os.path.join(bundle, "_internal", "ai")):
+        if os.path.isdir(d):
+            return d
+    return None
+
+
+def ai_skip(bundle, keep):
+    """folders of the offline AI that this computer does not need: all of it without Digonto Tools,
+    otherwise the helpers for other chips"""
+    ai = ai_dir_of(bundle)
+    if not ai:
+        return set()
+    if "digonto-tools" not in keep:
+        return {ai}
+    if MAC:
+        mine = "macos-arm64" if apple_chip() and os.path.isdir(os.path.join(ai, "macos-arm64")) else "macos-x86_64"
+        return {os.path.join(ai, d) for d in os.listdir(ai) if d.startswith("macos-") and d != mine}
+    return set()
 STUDIO = "digonto-studio"
 STUDIO_NAME = "Digonto Studio"
 PUBLISHER, HOMEPAGE = "Digonto", "https://digonto.dev"
@@ -219,6 +251,7 @@ class Backend:
         tmp = target.rstrip(os.sep) + ".digonto-new"
         shutil.rmtree(tmp, ignore_errors=True)
         skip = {os.path.join(self.src_apps, s) for s in self.slugs if s not in keep}
+        skip |= ai_skip(self.source, keep)
         files = []
         total = 0
         for dp, dirs, fns in os.walk(self.source):
