@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QFrame, QGridLayout, Q
 import digonto_ui as ui
 
 APP_NAME = "Digonto Studio"
-VERSION = "2.8.8"
+VERSION = "2.9.0"
 WIN = sys.platform == "win32"
 
 # slug, name, entry file, one line, planned (not built yet)

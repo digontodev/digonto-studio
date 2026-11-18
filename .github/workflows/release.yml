@@ -13,6 +13,10 @@ on:
         description: "Put the installers on the Releases page (version from digonto-app.json)"
         type: boolean
         default: false
+      apps_branch:
+        description: "Take the programs from this branch where it exists (for testing)"
+        type: string
+        default: main
 
 permissions:
   contents: write
@@ -37,8 +41,11 @@ jobs:
       - name: Get every program
         shell: bash
         run: |
+          BR="${{ inputs.apps_branch || 'main' }}"
           for a in $APPS; do
-            git clone --depth 1 "https://github.com/${{ github.repository_owner }}/$a.git" "src/$a"
+            git clone --depth 1 -b "$BR" "https://github.com/${{ github.repository_owner }}/$a.git" "src/$a" 2>/dev/null \
+              || git clone --depth 1 "https://github.com/${{ github.repository_owner }}/$a.git" "src/$a"
+            echo "$a: $(git -C src/$a rev-parse --abbrev-ref HEAD)"
           done
       - uses: actions/setup-python@v6
         with:
