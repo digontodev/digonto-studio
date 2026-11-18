@@ -24,12 +24,18 @@ cp digonto_ai.py "$WORK/"; cd "$WORK"
     --exclude-module pymatting --exclude-module numba --exclude-module llvmlite --exclude-module tkinter \
     --copy-metadata rembg --copy-metadata pooch --copy-metadata onnxruntime --copy-metadata numpy \
     --copy-metadata pillow digonto_ai.py
-mkdir -p dist/digonto-ai/models
-curl -L -o dist/digonto-ai/models/u2net.onnx https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx
 codesign --force --deep -s - dist/digonto-ai
+# test with the small model (the models themselves are added by the Studio build, not kept in the zip)
+mkdir -p dist/digonto-ai/models
+curl -fsSL -o dist/digonto-ai/models/u2netp.onnx https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
 ./dist/digonto-ai/digonto-ai check
-# real test: cut out a red circle on a grey background
 ./venv/bin/python -c "from PIL import Image, ImageDraw; im=Image.new('RGB',(320,320),'#888'); ImageDraw.Draw(im).ellipse((80,60,240,260),fill='#c22'); im.save('test.png')"
-./dist/digonto-ai/digonto-ai mask test.png test-mask.png && echo "cut-out test: OK"
+./dist/digonto-ai/digonto-ai mask test.png test-mask.png --model u2netp
+echo "cut-out test: OK"
+ANS=$(printf '{"in":"test.png","out":"t2.png","model":"u2netp"}\nquit\n' | ./dist/digonto-ai/digonto-ai serve)
+echo "$ANS" | grep -q '^ok' || { echo "serve test FAILED: $ANS"; exit 1; }
+echo "serve test: OK"
+rm -rf dist/digonto-ai/models
+rm -f "$HOME/Desktop/digonto-ai-macos-arm64.zip"
 cd dist && ditto -c -k --keepParent digonto-ai "$HOME/Desktop/digonto-ai-macos-arm64.zip"
 echo; echo "Done: $HOME/Desktop/digonto-ai-macos-arm64.zip  ($(du -h "$HOME/Desktop/digonto-ai-macos-arm64.zip" | cut -f1))"
