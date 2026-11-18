@@ -422,7 +422,7 @@ def studio_dmg(apps, slugs, pkg, frozen, outdir):
             show_icon_preview = False
             icon_size = 120
             text_size = 13
-            icon_locations = {{"Install Digonto Studio.app": (300, 125), "READ ME FIRST.txt": (535, 330)}}
+            icon_locations = {{"Install Digonto Studio.app": (300, 125), "READ ME FIRST.txt": (530, 262)}}
             """))
     main = apps[pkg]
     os.makedirs(outdir, exist_ok=True)
@@ -449,13 +449,13 @@ def small_readme_icon(dmg, work):
     png = os.path.join(work, "readme-icon.png")
     im = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    x0, y0, w, h, fold = 176, 150, 160, 206, 46                 # the page fills only ~40% of the icon
+    x0, y0, w, h, fold = 186, 262, 140, 180, 40                 # a small page at the bottom of the icon, near its name
     d.polygon([(x0, y0), (x0 + w - fold, y0), (x0 + w, y0 + fold), (x0 + w, y0 + h), (x0, y0 + h)],
               fill=(250, 248, 252, 255), outline=(200, 190, 220, 255))
     d.polygon([(x0 + w - fold, y0), (x0 + w - fold, y0 + fold), (x0 + w, y0 + fold)], fill=(226, 218, 238, 255))
     for i in range(6):
-        y = y0 + 72 + i * 20
-        d.rounded_rectangle([x0 + 24, y, x0 + w - 24 - (40 if i == 5 else 0), y + 6], 3, fill=(185, 175, 210, 255))
+        y = y0 + 62 + i * 18
+        d.rounded_rectangle([x0 + 22, y, x0 + w - 22 - (36 if i == 5 else 0), y + 6], 3, fill=(185, 175, 210, 255))
     im.save(png)
     rw = os.path.join(work, "rw.sparseimage")
     if os.path.exists(rw):
