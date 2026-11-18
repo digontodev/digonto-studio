@@ -16,7 +16,9 @@ WORK="$HOME/digonto-ai-build"; rm -rf "$WORK"; mkdir -p "$WORK"
 cp digonto_ai.py "$WORK/"; cd "$WORK"
 "$PY" -m venv venv
 ./venv/bin/pip install --upgrade pip -q
-./venv/bin/pip install -q "rembg==2.0.87" onnxruntime pillow numpy pyinstaller
+./venv/bin/pip install -q --only-binary=:all: --no-deps "rembg==2.0.87"
+./venv/bin/pip install -q --only-binary=:all: "jsonschema>=4.25.1,<5" "numpy>=2.3,<3" "pillow>=12.3,<14" \
+    "pooch>=1.8.2,<2" "scikit-image>=0.26,<0.27" "scipy>=1.16.3,<2" "tqdm>=4.67.1,<5" onnxruntime pyinstaller
 ./venv/bin/pyinstaller --noconfirm --onedir --name digonto-ai \
     --collect-all rembg --collect-all onnxruntime --collect-all pooch --collect-submodules scipy \
     --exclude-module pymatting --exclude-module numba --exclude-module llvmlite --exclude-module tkinter \

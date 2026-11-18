@@ -30,7 +30,10 @@ if [ "$SYS" = windows ]; then PY=venv/Scripts/python.exe; else PY=venv/bin/pytho
 ORT=onnxruntime
 [ "$SYS" = macos ] && ORT="onnxruntime==1.23.2"      # the last version made for Intel Macs
 "$PY" -m pip install -q --upgrade pip
-"$PY" -m pip install -q "rembg==2.0.87" "$ORT" pillow numpy "pyinstaller==6.22.3"
+# rembg without pymatting (it would pull numba + llvmlite, which have no Intel-Mac builds; the helper does not need them)
+"$PY" -m pip install -q --only-binary=:all: --no-deps "rembg==2.0.87"
+"$PY" -m pip install -q --only-binary=:all: "jsonschema>=4.25.1,<5" "numpy>=2.3,<3" "pillow>=12.3,<14" \
+    "pooch>=1.8.2,<2" "scikit-image>=0.26,<0.27" "scipy>=1.16.3,<2" "tqdm>=4.67.1,<5" "$ORT" "pyinstaller==6.22.3"
 "$PY" -m PyInstaller --noconfirm --onedir --name digonto-ai \
     --collect-all rembg --collect-all onnxruntime --collect-all pooch --collect-submodules scipy \
     --exclude-module pymatting --exclude-module numba --exclude-module llvmlite --exclude-module tkinter \
