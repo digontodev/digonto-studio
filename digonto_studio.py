@@ -207,7 +207,7 @@ class Tile(QFrame):
         self.btn.setVisible(False)
         if self.installed:
             text, bg, fg = ("Open now", "#E8DBF3", "#8A2150") if not running else ("Running", "#FFF1CC", "#7A5A00")
-            if slug != "digonto-studio" and not STANDALONE:
+            if slug != "digonto-studio":
                 self.btn.setText("Uninstall")
                 self.btn.setStyleSheet(plain)
                 self.btn.setVisible(in_bundle(slug) or True)
@@ -387,6 +387,23 @@ class Main(QMainWindow):
 
     def run_setup(self, slug, action):
         prog = BY_SLUG[slug]
+        if STANDALONE:                       # the installed Digonto removes one program itself (it asks first)
+            if action != "uninstall":
+                QMessageBox.information(self, APP_NAME, f"To add {prog[1]}, open the Digonto Studio installer "
+                                        "you downloaded from digonto.dev and tick it.")
+                return
+            kw = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+            if WIN:
+                kw["creationflags"] = 0x00000008 | 0x00000200
+            else:
+                kw["start_new_session"] = True
+            try:
+                self.setup_proc = subprocess.Popen([LAUNCHER, "--uninstall", slug], **kw)
+            except OSError as e:
+                QMessageBox.warning(self, APP_NAME, f"Could not start the uninstaller:\n{e}")
+                return
+            self.tick()
+            return
         script = os.path.join(base_dir(), "_bundle", "digonto_setup.py")
         if not os.path.isfile(script):
             QMessageBox.information(self, APP_NAME, "The install files are not on this computer. Run \"Install Digonto\" from the downloaded folder.")
@@ -420,6 +437,12 @@ class Main(QMainWindow):
         cmd = [venv_python(slug), os.path.join(app_folder(slug), prog[2]), *files]
         if STANDALONE:
             cmd = [LAUNCHER, "--app", slug, *files]
+            # the program's own starter (its own Dock / taskbar icon), made by the Digonto installer
+            own = (os.path.join("/Applications", f"{prog[1]}.app", "Contents", "MacOS", prog[1])
+                   if sys.platform == "darwin" else
+                   os.path.join(os.path.dirname(LAUNCHER), f"{slug}.exe") if WIN else "")
+            if own and os.path.isfile(own):
+                cmd = [own, *files]
         elif sys.platform == "darwin":          # through the program's own .app, so the Dock shows its name and icon (not "Python")
             for d in ("/Applications", os.path.expanduser("~/Applications")):
                 ex = os.path.join(d, f"{prog[1]}.app", "Contents", "MacOS", prog[1])

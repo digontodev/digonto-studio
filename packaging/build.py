@@ -20,6 +20,7 @@ import textwrap
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+STUDIO = "digonto-studio"
 SYS = platform.system()
 PUBLISHER = "Digonto"
 HOMEPAGE = "https://digonto.dev"
@@ -145,6 +146,12 @@ def freeze(apps, slugs, pkg, work):
            "--specpath", work, "--paths", work,
            "--add-data", f"{staged}{sep}apps", "--add-data", f"{os.path.join(work, 'default-app.txt')}{sep}.",
            "--hidden-import", "_digonto_deps"]
+    if pkg == STUDIO:                       # the Studio package is also its own installer (installer/ folder)
+        inst = os.path.join(work, "installer")
+        shutil.copytree(os.path.join(HERE, "installer"), inst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        cmd += ["--add-data", f"{inst}{sep}installer"]
+        for m in ("plistlib", "ctypes", "ast", "threading", "winreg" if SYS == "Windows" else "json"):
+            cmd += ["--hidden-import", m]
     needs_tk = any(apps[s].get("needs_tk") for s in slugs)
     if not needs_tk:
         cmd += ["--exclude-module", "tkinter"]
@@ -368,6 +375,203 @@ def build_exe(apps, slugs, pkg, frozen, outdir):
     return os.path.join(outdir, f"{main['name'].replace(' ', '-')}-{main['version']}-Windows-Setup.exe")
 
 
+
+# ---------------------------------------------------------------- Digonto Studio: our own installer on every system
+INST = os.path.join(HERE, "installer")
+README = os.path.join(INST, "assets", "READ ME FIRST.txt")
+
+
+def _bg_png(path, scale):
+    """the horizon background of the first window, drawn by the installer's own code"""
+    code = ("import sys; sys.path.insert(0, %r)\n"
+            "from PySide6.QtWidgets import QApplication\n"
+            "app = QApplication([])\n"
+            "import digonto_installer as d\n"
+            "d.render_background(%r, scale=%d)\n") % (INST, path, scale)
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    run([sys.executable, "-c", code], env=env)
+
+
+def studio_dmg(apps, slugs, pkg, frozen, outdir):
+    """macOS: a disk whose window (600 x 400, no toolbar) shows the horizon background, the
+    "Install Digonto Studio" icon and READ ME FIRST.txt; the icon opens our installer window"""
+    build_dmg_plist(apps, slugs, pkg, frozen)
+    work = os.path.dirname(frozen)
+    inst_app = os.path.join(work, "Install Digonto Studio.app")
+    shutil.rmtree(inst_app, ignore_errors=True)
+    shutil.copytree(frozen, inst_app, symlinks=True)
+    subprocess.run(["codesign", "--force", "--deep", "--sign", "-", inst_app], check=False)
+    bg1, bg2, tif = (os.path.join(work, n) for n in ("bg.png", "bg@2x.png", "bg.tiff"))
+    _bg_png(bg1, 1)
+    _bg_png(bg2, 2)
+    run(["tiffutil", "-cathidpicheck", bg1, bg2, "-out", tif])
+    settings = os.path.join(work, "dmg_settings.py")
+    with open(settings, "w") as f:
+        f.write(textwrap.dedent(f"""\
+            format = "UDZO"
+            files = [{inst_app!r}, {README!r}]
+            symlinks = {{}}
+            background = {tif!r}
+            window_rect = ((200, 140), (600, 400))
+            default_view = "icon-view"
+            show_toolbar = False
+            show_status_bar = False
+            show_tab_view = False
+            show_pathbar = False
+            show_sidebar = False
+            show_icon_preview = False
+            icon_size = 120
+            text_size = 13
+            icon_locations = {{"Install Digonto Studio.app": (300, 125), "READ ME FIRST.txt": (535, 330)}}
+            """))
+    main = apps[pkg]
+    os.makedirs(outdir, exist_ok=True)
+    arch = "arm64" if platform.machine() == "arm64" else "x86_64"
+    out = os.path.join(outdir, f"{main['name'].replace(' ', '-')}-{main['version']}-macOS-{arch}.dmg")
+    if os.path.exists(out):
+        os.remove(out)
+    for attempt in range(5):                      # hdiutil (used by dmgbuild) is often busy on build machines
+        try:
+            run([sys.executable, "-m", "dmgbuild", "-s", settings, main["name"], out]); break
+        except subprocess.CalledProcessError:
+            if attempt == 4: raise
+            time.sleep(10 * (attempt + 1))
+    return out
+
+
+def build_dmg_plist(apps, slugs, pkg, frozen):
+    main = apps[pkg]
+    plist_path = os.path.join(frozen, "Contents", "Info.plist")
+    with open(plist_path, "rb") as f:
+        pl = plistlib.load(f)
+    pl.update({"CFBundleName": main["name"], "CFBundleDisplayName": main["name"],
+               "CFBundleShortVersionString": main["version"], "CFBundleVersion": main["version"],
+               "LSMinimumSystemVersion": str(main.get("macos_min", 11)), "NSHighResolutionCapable": True,
+               "NSHumanReadableCopyright": "Digonto - digonto.dev - AGPL-3.0"})
+    with open(plist_path, "wb") as f:
+        plistlib.dump(pl, f)
+
+
+def studio_exe(apps, slugs, pkg, frozen, outdir):
+    """Windows: one .exe that unpacks Digonto Studio to a temporary folder and opens our welcome window
+    (600 x 400, horizon background) - double-clicking the icon there opens the installer window"""
+    main = apps[pkg]
+    work = os.path.dirname(frozen)
+    ico = icon_file(main, "ico")
+    name = f"{main['name'].replace(' ', '-')}-{main['version']}-Windows-Setup.exe"
+    os.makedirs(outdir, exist_ok=True)
+    nsi = os.path.join(work, "studio.nsi")
+    with open(nsi, "w", encoding="utf-8") as f:
+        f.write(textwrap.dedent(f"""\
+            Unicode true
+            Name "{main['name']}"
+            OutFile "{os.path.join(outdir, name)}"
+            RequestExecutionLevel user
+            SilentInstall silent
+            SetCompressor /SOLID lzma
+            {'Icon "' + ico + '"' if ico else ''}
+            VIProductVersion "{'.'.join((main['version'].split('.') + ['0', '0', '0'])[:4])}"
+            VIAddVersionKey "ProductName" "{main['name']} Setup"
+            VIAddVersionKey "CompanyName" "Digonto"
+            VIAddVersionKey "FileDescription" "{main['name']} Setup"
+            VIAddVersionKey "FileVersion" "{main['version']}"
+            VIAddVersionKey "LegalCopyright" "AGPL-3.0 - digonto.dev"
+            Section
+              InitPluginsDir
+              Banner::show /NOUNLOAD /set 76 "{main['name']}" "Getting the setup ready..."
+              SetOutPath "$PLUGINSDIR\\digonto"
+              File /r "{frozen}\\*.*"
+              Banner::destroy
+              ExecWait '"$PLUGINSDIR\\digonto\\{pkg}.exe" --welcome'
+              SetOutPath "$TEMP"
+            SectionEnd
+            """))
+    makensis = shutil.which("makensis") or r"C:\Program Files (x86)\NSIS\makensis.exe"
+    run([makensis, "/V2", nsi])
+    return os.path.join(outdir, name)
+
+
+def studio_deb(apps, slugs, pkg, frozen, outdir):
+    """Linux: the .deb puts Digonto Studio in /opt and adds one "Install Digonto" icon; that opens our welcome
+    window, and the installer window then gives every chosen program its own icon"""
+    main = apps[pkg]
+    ver = main["version"]
+    root = os.path.join(os.path.dirname(frozen), "debroot")
+    shutil.rmtree(root, ignore_errors=True)
+    opt = os.path.join(root, "opt", "digonto", pkg)
+    shutil.copytree(frozen, opt, symlinks=True)
+    exe = f"/opt/digonto/{pkg}/{pkg}"
+    appdir = os.path.join(root, "usr", "share", "applications")
+    os.makedirs(appdir)
+    with open(os.path.join(appdir, "digonto-studio-setup.desktop"), "w") as f:
+        f.write(textwrap.dedent(f"""\
+            [Desktop Entry]
+            Type=Application
+            Name=Install Digonto
+            Comment=Choose which Digonto programs to install
+            Exec={exe} --welcome
+            Icon={pkg}
+            Terminal=false
+            Categories=System;Settings;
+            StartupWMClass={pkg}
+            """))
+    for s in slugs:
+        a = apps[s]
+        for size in (16, 24, 32, 48, 64, 128, 256, 512):
+            src = os.path.join(a["_src"], "assets", f"{s}-{size}.png")
+            if os.path.isfile(src):
+                d = os.path.join(root, "usr", "share", "icons", "hicolor", f"{size}x{size}", "apps")
+                os.makedirs(d, exist_ok=True)
+                shutil.copy2(src, os.path.join(d, f"{s}.png"))
+    deps = list(DEB_BASE)
+    for s in slugs:
+        deps += [p for p in apps[s].get("apt", []) if p not in deps]
+    size_kb = sum(os.path.getsize(os.path.join(dp, fn)) for dp, _d, fs in os.walk(root) for fn in fs
+                  if not os.path.islink(os.path.join(dp, fn))) // 1024
+    deb = os.path.join(root, "DEBIAN")
+    os.makedirs(deb)
+    arch = "arm64" if platform.machine() in ("aarch64", "arm64") else "amd64"
+    with open(os.path.join(deb, "control"), "w") as f:
+        f.write(textwrap.dedent(f"""\
+            Package: {pkg}
+            Version: {ver}
+            Section: graphics
+            Priority: optional
+            Architecture: {arch}
+            Maintainer: Digonto <digontodev@users.noreply.github.com>
+            Homepage: {HOMEPAGE}
+            Installed-Size: {size_kb}
+            Depends: {', '.join(sorted(set(deps)))}
+            Description: {main['name']} - {main.get('comment', main['name'])}
+             Part of the Digonto programs (digonto.dev). Works without internet.
+             After installing, click "Install Digonto" to choose the programs.
+            """))
+    # after installing: put "Install Digonto" in the dock of the person who is logged in (best effort)
+    pin = textwrap.dedent("""\
+        for s in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
+          u=$(loginctl show-session "$s" -p Name --value 2>/dev/null); a=$(loginctl show-session "$s" -p Active --value 2>/dev/null)
+          [ "$a" = "yes" ] && [ -n "$u" ] && [ "$u" != "root" ] || continue
+          uid=$(id -u "$u") || continue
+          bus="unix:path=/run/user/$uid/bus"
+          cur=$(runuser -u "$u" -- env DBUS_SESSION_BUS_ADDRESS="$bus" gsettings get org.gnome.shell favorite-apps 2>/dev/null) || continue
+          case "$cur" in *digonto-studio*) continue;; esac
+          new=$(echo "$cur" | sed "s/]$/, 'digonto-studio-setup.desktop']/; s/\\[, /[/; s/@as \\[\\]/['digonto-studio-setup.desktop']/")
+          runuser -u "$u" -- env DBUS_SESSION_BUS_ADDRESS="$bus" gsettings set org.gnome.shell favorite-apps "$new" 2>/dev/null || true
+        done
+        """)
+    for name, body in (("postinst", "update-desktop-database -q /usr/share/applications 2>/dev/null || true\n"
+                                    "gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true\n" + pin),
+                       ("postrm", "update-desktop-database -q /usr/share/applications 2>/dev/null || true\n")):
+        p = os.path.join(deb, name)
+        with open(p, "w") as f:
+            f.write("#!/bin/sh\n" + body + "exit 0\n")
+        os.chmod(p, 0o755)
+    os.makedirs(outdir, exist_ok=True)
+    out = os.path.join(outdir, f"{pkg}_{ver}_{arch}.deb")
+    run(["dpkg-deb", "--root-owner-group", "-Zxz", "--build", root, out])
+    return out
+
+
 # ---------------------------------------------------------------- main
 def requirements_for(apps, slugs):
     return [os.path.join(apps[s]["_src"], apps[s]["requirements"]) for s in slugs]
@@ -402,7 +606,10 @@ def main():
         print(frozen)
         return
     out = os.path.abspath(a.out)
-    made = {"Linux": build_deb, "Darwin": build_dmg, "Windows": build_exe}[SYS](apps, slugs, pkg, frozen, out)
+    if pkg == STUDIO:
+        made = {"Linux": studio_deb, "Darwin": studio_dmg, "Windows": studio_exe}[SYS](apps, slugs, pkg, frozen, out)
+    else:
+        made = {"Linux": build_deb, "Darwin": build_dmg, "Windows": build_exe}[SYS](apps, slugs, pkg, frozen, out)
     print("MADE", made)
 
 

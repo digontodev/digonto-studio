@@ -1,5 +1,5 @@
 # Builds Digonto Studio WITH every Digonto program inside (one download, one runtime) on GitHub's own computers.
-#   Linux .deb, macOS .dmg (Apple silicon and Intel), Windows .exe installer.
+#   Linux .deb, macOS .dmg, Windows .exe - each opens the Digonto installer window (choose the programs).
 # The programs are taken from their own repositories (latest version of each).
 # Start it: on the Actions page press \"Run workflow\" and tick \"Publish\" (or push a tag like v2.9.0).
 name: Release
@@ -55,10 +55,14 @@ jobs:
           done
           python -m pip install --require-hashes $REQ
           python -m pip install pyinstaller==6.22.3
-      - name: Inno Setup (Windows installer maker)
+      - name: NSIS (packs the Windows setup .exe)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: if (-not (Get-Command iscc -ErrorAction SilentlyContinue) -and -not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+        run: if (-not (Get-Command makensis -ErrorAction SilentlyContinue) -and -not (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe")) { choco install nsis -y --no-progress }
+      - name: dmgbuild (makes the Mac disk window with its background)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: python -m pip install "dmgbuild>=1.6,<2"
       - name: Build
         shell: bash
         run: python src/digonto-studio/packaging/build.py --root src --apps all --package digonto-studio --out dist
