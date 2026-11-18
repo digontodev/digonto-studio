@@ -436,7 +436,48 @@ def studio_dmg(apps, slugs, pkg, frozen, outdir):
         except subprocess.CalledProcessError:
             if attempt == 4: raise
             time.sleep(10 * (attempt + 1))
+    try:
+        small_readme_icon(out, work)
+    except Exception as e:                        # noqa: BLE001 - a big README icon is no reason to fail the build
+        print("README icon not changed:", e)
     return out
+
+
+def small_readme_icon(dmg, work):
+    """Finder shows a text file as a big page preview; give READ ME FIRST.txt a small plain file icon instead"""
+    from PIL import Image, ImageDraw
+    png = os.path.join(work, "readme-icon.png")
+    im = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    x0, y0, w, h, fold = 176, 150, 160, 206, 46                 # the page fills only ~40% of the icon
+    d.polygon([(x0, y0), (x0 + w - fold, y0), (x0 + w, y0 + fold), (x0 + w, y0 + h), (x0, y0 + h)],
+              fill=(250, 248, 252, 255), outline=(200, 190, 220, 255))
+    d.polygon([(x0 + w - fold, y0), (x0 + w - fold, y0 + fold), (x0 + w, y0 + fold)], fill=(226, 218, 238, 255))
+    for i in range(6):
+        y = y0 + 72 + i * 20
+        d.rounded_rectangle([x0 + 24, y, x0 + w - 24 - (40 if i == 5 else 0), y + 6], 3, fill=(185, 175, 210, 255))
+    im.save(png)
+    rw = os.path.join(work, "rw.sparseimage")
+    if os.path.exists(rw):
+        os.remove(rw)
+    run(["hdiutil", "convert", dmg, "-format", "UDSP", "-o", rw])
+    mnt = os.path.join(work, "mnt")
+    os.makedirs(mnt, exist_ok=True)
+    run(["hdiutil", "attach", rw, "-mountpoint", mnt, "-nobrowse", "-noverify", "-noautoopen"])
+    try:
+        target = os.path.join(mnt, "READ ME FIRST.txt")
+        js = ("ObjC.import('AppKit');"
+              f"var img=$.NSImage.alloc.initWithContentsOfFile({json.dumps(png)});"
+              f"$.NSWorkspace.sharedWorkspace.setIconForFileOptions(img,{json.dumps(target)},0);")
+        run(["osascript", "-l", "JavaScript", "-e", js])
+    finally:
+        for attempt in range(5):
+            if subprocess.run(["hdiutil", "detach", mnt]).returncode == 0:
+                break
+            time.sleep(5)
+    os.remove(dmg)
+    run(["hdiutil", "convert", rw, "-format", "UDZO", "-imagekey", "zlib-level=9", "-o", dmg])
+    os.remove(rw)
 
 
 def build_dmg_plist(apps, slugs, pkg, frozen):

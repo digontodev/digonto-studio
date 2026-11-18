@@ -438,9 +438,12 @@ class Main(QMainWindow):
         if STANDALONE:
             cmd = [LAUNCHER, "--app", slug, *files]
             # the program's own starter (its own Dock / taskbar icon), made by the Digonto installer
-            own = (os.path.join("/Applications", f"{prog[1]}.app", "Contents", "MacOS", prog[1])
-                   if sys.platform == "darwin" else
-                   os.path.join(os.path.dirname(LAUNCHER), f"{slug}.exe") if WIN else "")
+            mac_app = os.path.join("/Applications", f"{prog[1]}.app")
+            if sys.platform == "darwin" and os.path.isfile(os.path.join(mac_app, "Contents", "MacOS", prog[1])):
+                # through macOS itself: the program runs as its own app (its own Dock icon, and macOS asks for
+                # permissions such as Screen Recording for that program, not for Studio). -W: wait while it runs
+                cmd = ["open", "-W", "-a", mac_app] + (["--args", *files] if files else [])
+            own = os.path.join(os.path.dirname(LAUNCHER), f"{slug}.exe") if WIN else ""
             if own and os.path.isfile(own):
                 cmd = [own, *files]
         elif sys.platform == "darwin":          # through the program's own .app, so the Dock shows its name and icon (not "Python")

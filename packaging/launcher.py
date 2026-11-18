@@ -48,7 +48,21 @@ def run_app(slug, args):
     entry = os.path.join(d, conf["entry"])
     sys.path.insert(0, d)
     sys.argv = [entry] + list(args)
-    runpy.run_path(entry, run_name="__main__")
+    code = 0
+    try:
+        runpy.run_path(entry, run_name="__main__")
+    except SystemExit as e:
+        code = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+    if getattr(sys, "frozen", False):
+        # the window is closed: end the process now, so no waiting background task keeps it running
+        # ("Running in Background" in the Dock after Quit)
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        except Exception:                          # noqa: BLE001
+            pass
+        os._exit(code)
+    return code
 
 
 def app_by_name():
