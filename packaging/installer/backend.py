@@ -149,8 +149,13 @@ class Backend:
                             key=lambda s: (s != STUDIO, load_conf(self.src_apps, s)["name"].lower()))
         self.confs = {s: load_conf(self.src_apps, s) for s in self.slugs}
         sizes = {s: folder_size_mb(os.path.join(self.src_apps, s)) for s in self.slugs}
-        shared = max(0.0, folder_size_mb(self.source) - sum(sizes.values()))
+        ai = ai_dir_of(self.source)
+        ai_all = folder_size_mb(ai) if ai else 0.0
+        shared = max(0.0, folder_size_mb(self.source) - sum(sizes.values()) - ai_all)
         sizes[STUDIO] = sizes.get(STUDIO, 0) + shared              # the shared runtime belongs to Studio
+        if ai and "digonto-tools" in sizes:                         # the offline AI belongs to Tools - only the
+            unused = sum(folder_size_mb(d) for d in ai_skip(self.source, {"digonto-tools"}))   # helper for this chip
+            sizes["digonto-tools"] += max(0.0, ai_all - unused)
         self.sizes = sizes
 
     # ---- what is installed where
