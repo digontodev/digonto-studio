@@ -80,18 +80,6 @@ jobs:
         env:
           DIGONTO_AI_DIR: ${{ github.workspace }}/ai
         run: python src/digonto-studio/packaging/build.py --root src --apps all --package digonto-studio --out dist
-      - name: Fixed-name copy (stable download link for digonto.dev)
-        shell: bash
-        run: |
-          N="${{ github.event.repository.name }}"
-          for f in dist/*; do
-            case "$f" in
-              *.exe) cp "$f" "dist/$N-windows.exe" ;;
-              *.dmg) cp "$f" "dist/$N-macos.dmg" ;;
-              *.deb) cp "$f" "dist/$N-linux.deb" ;;
-            esac
-          done
-          ls -la dist
       - uses: actions/upload-artifact@v5
         with:
           name: digonto-studio-${{ matrix.os }}
@@ -114,6 +102,18 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Fixed-name copy (stable download link for digonto.dev)
+        shell: bash
+        run: |
+          N="${{ github.event.repository.name }}"
+          for f in dist/*; do
+            case "$f" in
+              *.exe) cp "$f" "dist/$N-windows.exe" ;;
+              *.dmg) cp "$f" "dist/$N-macos.dmg" ;;
+              *.deb) cp "$f" "dist/$N-linux.deb" ;;
+            esac
+          done
+          ls -la dist
       - name: Put the installers on the Releases page
         uses: softprops/action-gh-release@v2
         with:
