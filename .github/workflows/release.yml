@@ -1,5 +1,5 @@
 # Builds Digonto Studio WITH every Digonto program inside (one download, one runtime) on GitHub's own computers.
-#   Linux .deb, macOS .dmg (Apple silicon and Intel), Windows .exe installer.
+#   Linux .deb, macOS .dmg, Windows .exe - each opens the Digonto installer window (choose the programs).
 # The programs are taken from their own repositories (latest version of each).
 # Start it: on the Actions page press \"Run workflow\" and tick \"Publish\" (or push a tag like v2.9.0).
 name: Release
@@ -13,6 +13,10 @@ on:
         description: "Put the installers on the Releases page (version from digonto-app.json)"
         type: boolean
         default: false
+      apps_branch:
+        description: "Take the programs from this branch where it exists (for testing)"
+        type: string
+        default: main
 
 permissions:
   contents: write
@@ -37,8 +41,11 @@ jobs:
       - name: Get every program
         shell: bash
         run: |
+          BR="${{ inputs.apps_branch || 'main' }}"
           for a in $APPS; do
-            git clone --depth 1 "https://github.com/${{ github.repository_owner }}/$a.git" "src/$a"
+            git clone --depth 1 -b "$BR" "https://github.com/${{ github.repository_owner }}/$a.git" "src/$a" 2>/dev/null \
+              || git clone --depth 1 "https://github.com/${{ github.repository_owner }}/$a.git" "src/$a"
+            echo "$a: $(git -C src/$a rev-parse --abbrev-ref HEAD)"
           done
       - uses: actions/setup-python@v6
         with:
@@ -55,22 +62,37 @@ jobs:
           done
           python -m pip install --require-hashes $REQ
           python -m pip install pyinstaller==6.22.3
-      - name: Inno Setup (Windows installer maker)
+      - name: NSIS (packs the Windows setup .exe)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: if (-not (Get-Command iscc -ErrorAction SilentlyContinue) -and -not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+        run: if (-not (Get-Command makensis -ErrorAction SilentlyContinue) -and -not (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe")) { choco install nsis -y --no-progress }
+      - name: dmgbuild (makes the Mac disk window with its background)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: python -m pip install "dmgbuild>=1.6,<2"
+      - name: Fonts for Digonto Logo (the Google Fonts collection, pinned in logokit/data/fonts.json)
+        shell: bash
+        run: |
+          if [ -f src/digonto-logo/logokit/fetch_fonts.py ]; then python src/digonto-logo/logokit/fetch_fonts.py; fi
+      - name: Offline AI (background removal helper for this system, plus the Apple-chip one on macOS)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash src/digonto-studio/packaging/ai/build-ai-ci.sh "$GITHUB_WORKSPACE/ai"
       - name: Build
         shell: bash
+        env:
+          DIGONTO_AI_DIR: ${{ github.workspace }}/ai
         run: python src/digonto-studio/packaging/build.py --root src --apps all --package digonto-studio --out dist
-      - name: Fixed-name copy (stable download link for digonto.dev)
+      - name: One file per system, with a fixed name (the digonto.dev download link)
         shell: bash
         run: |
           N="${{ github.event.repository.name }}"
           for f in dist/*; do
             case "$f" in
-              *.exe) cp "$f" "dist/$N-windows.exe" ;;
-              *.dmg) cp "$f" "dist/$N-macos.dmg" ;;
-              *.deb) cp "$f" "dist/$N-linux.deb" ;;
+              *.exe) mv "$f" "dist/$N-windows.exe" ;;
+              *.dmg) mv "$f" "dist/$N-macos.dmg" ;;
+              *.deb) mv "$f" "dist/$N-linux.deb" ;;
             esac
           done
           ls -la dist

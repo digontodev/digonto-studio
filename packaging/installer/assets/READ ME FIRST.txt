@@ -1,0 +1,37 @@
+DIGONTO STUDIO - READ ME FIRST
+==============================
+
+Digonto Studio is a family of free programs: pictures, drawings, PDF, documents,
+spreadsheets, audio, video and more. They work completely offline: your files never
+leave your computer, and the programs never connect to the internet.
+
+HOW TO INSTALL
+--------------
+1. Double-click the Digonto Studio icon.
+2. Tick the programs you want. Digonto Studio is always installed.
+3. Click Install. When it says "All done", click OK, then Quit.
+
+macOS
+-----
+- The first time you open it, macOS may say it cannot verify the program
+  (it is not signed by Apple yet). Open System Settings > Privacy & Security,
+  scroll down and click "Open Anyway". This is needed only once.
+- After installing, eject the "Digonto Studio" disk in Finder.
+
+Windows
+-------
+- If "Windows protected your PC" appears, click "More info" > "Run anyway".
+- Every program gets its own entry in the Start menu, and in Settings > Apps.
+
+Ubuntu / Debian
+---------------
+- Click "Install Digonto" in your apps or dock to open this setup.
+- After installing, every program has its own icon in your apps.
+
+UPDATE, REPAIR, UNINSTALL
+-------------------------
+Open the setup again (a newer download for updates) and choose Update, Repair or
+Uninstall. You can also uninstall one program from its tile in Digonto Studio.
+Uninstalling never touches your own files.
+
+Free and open source (AGPL-3.0)   -   https://digonto.dev   -   digontodev@proton.me

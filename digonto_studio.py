@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QFrame, QGridLayout, Q
 import digonto_ui as ui
 
 APP_NAME = "Digonto Studio"
-VERSION = "2.8.8"
+VERSION = "2.9.0"
 WIN = sys.platform == "win32"
 
 # slug, name, entry file, one line, planned (not built yet)
@@ -207,7 +207,7 @@ class Tile(QFrame):
         self.btn.setVisible(False)
         if self.installed:
             text, bg, fg = ("Open now", "#E8DBF3", "#8A2150") if not running else ("Running", "#FFF1CC", "#7A5A00")
-            if slug != "digonto-studio" and not STANDALONE:
+            if slug != "digonto-studio":
                 self.btn.setText("Uninstall")
                 self.btn.setStyleSheet(plain)
                 self.btn.setVisible(in_bundle(slug) or True)
@@ -285,6 +285,8 @@ class Main(QMainWindow):
         fm = mb.addMenu("File")
         a = QAction("Open file ...", self, shortcut="Ctrl+O", triggered=self.open_file)
         fm.addAction(a)
+        fm.addSeparator()
+        fm.addAction(QAction("Install, repair or remove programs ...", self, triggered=self.open_installer))
         fm.addSeparator()
         fm.addAction(QAction("Exit", self, shortcut="Ctrl+Q", triggered=self.close))
         vm = mb.addMenu("View")
@@ -385,8 +387,42 @@ class Main(QMainWindow):
         p = getattr(self, "setup_proc", None)
         return p is not None and p.poll() is None
 
+    def open_installer(self):
+        """the Digonto Studio installer window: add programs, update, repair or remove everything"""
+        if not (STANDALONE and LAUNCHER and os.path.exists(LAUNCHER)):
+            QMessageBox.information(self, APP_NAME, "The installer is part of the Digonto Studio download from digonto.dev.")
+            return
+        kw = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+        if WIN:
+            kw["creationflags"] = 0x00000008 | 0x00000200
+        else:
+            kw["start_new_session"] = True
+        try:
+            subprocess.Popen([LAUNCHER, "--setup"], **kw)
+        except OSError as e:
+            QMessageBox.warning(self, APP_NAME, f"The installer did not start:\n{e}")
+
     def run_setup(self, slug, action):
         prog = BY_SLUG[slug]
+        if STANDALONE:                       # the installed Digonto removes one program itself (it asks first)
+            if action != "uninstall":
+                r = QMessageBox.question(self, APP_NAME, f"Open the Digonto Studio installer to add {prog[1]}?\n"
+                                         "(Also in the File menu: Install, repair or remove programs.)")
+                if r == QMessageBox.Yes:
+                    self.open_installer()
+                return
+            kw = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+            if WIN:
+                kw["creationflags"] = 0x00000008 | 0x00000200
+            else:
+                kw["start_new_session"] = True
+            try:
+                self.setup_proc = subprocess.Popen([LAUNCHER, "--uninstall", slug], **kw)
+            except OSError as e:
+                QMessageBox.warning(self, APP_NAME, f"Could not start the uninstaller:\n{e}")
+                return
+            self.tick()
+            return
         script = os.path.join(base_dir(), "_bundle", "digonto_setup.py")
         if not os.path.isfile(script):
             QMessageBox.information(self, APP_NAME, "The install files are not on this computer. Run \"Install Digonto\" from the downloaded folder.")
@@ -420,6 +456,15 @@ class Main(QMainWindow):
         cmd = [venv_python(slug), os.path.join(app_folder(slug), prog[2]), *files]
         if STANDALONE:
             cmd = [LAUNCHER, "--app", slug, *files]
+            # the program's own starter (its own Dock / taskbar icon), made by the Digonto installer
+            mac_app = os.path.join("/Applications", f"{prog[1]}.app")
+            if sys.platform == "darwin" and os.path.isfile(os.path.join(mac_app, "Contents", "MacOS", prog[1])):
+                # through macOS itself: the program runs as its own app (its own Dock icon, and macOS asks for
+                # permissions such as Screen Recording for that program, not for Studio). -W: wait while it runs
+                cmd = ["open", "-W", "-a", mac_app] + (["--args", *files] if files else [])
+            own = os.path.join(os.path.dirname(LAUNCHER), f"{slug}.exe") if WIN else ""
+            if own and os.path.isfile(own):
+                cmd = [own, *files]
         elif sys.platform == "darwin":          # through the program's own .app, so the Dock shows its name and icon (not "Python")
             for d in ("/Applications", os.path.expanduser("~/Applications")):
                 ex = os.path.join(d, f"{prog[1]}.app", "Contents", "MacOS", prog[1])
