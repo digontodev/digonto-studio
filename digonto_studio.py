@@ -286,6 +286,8 @@ class Main(QMainWindow):
         a = QAction("Open file ...", self, shortcut="Ctrl+O", triggered=self.open_file)
         fm.addAction(a)
         fm.addSeparator()
+        fm.addAction(QAction("Install, repair or remove programs ...", self, triggered=self.open_installer))
+        fm.addSeparator()
         fm.addAction(QAction("Exit", self, shortcut="Ctrl+Q", triggered=self.close))
         vm = mb.addMenu("View")
         vm.addAction(QAction("Refresh", self, shortcut="F5", triggered=self.refresh))
@@ -385,12 +387,29 @@ class Main(QMainWindow):
         p = getattr(self, "setup_proc", None)
         return p is not None and p.poll() is None
 
+    def open_installer(self):
+        """the Digonto Studio installer window: add programs, update, repair or remove everything"""
+        if not (STANDALONE and LAUNCHER and os.path.exists(LAUNCHER)):
+            QMessageBox.information(self, APP_NAME, "The installer is part of the Digonto Studio download from digonto.dev.")
+            return
+        kw = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+        if WIN:
+            kw["creationflags"] = 0x00000008 | 0x00000200
+        else:
+            kw["start_new_session"] = True
+        try:
+            subprocess.Popen([LAUNCHER, "--setup"], **kw)
+        except OSError as e:
+            QMessageBox.warning(self, APP_NAME, f"The installer did not start:\n{e}")
+
     def run_setup(self, slug, action):
         prog = BY_SLUG[slug]
         if STANDALONE:                       # the installed Digonto removes one program itself (it asks first)
             if action != "uninstall":
-                QMessageBox.information(self, APP_NAME, f"To add {prog[1]}, open the Digonto Studio installer "
-                                        "you downloaded from digonto.dev and tick it.")
+                r = QMessageBox.question(self, APP_NAME, f"Open the Digonto Studio installer to add {prog[1]}?\n"
+                                         "(Also in the File menu: Install, repair or remove programs.)")
+                if r == QMessageBox.Yes:
+                    self.open_installer()
                 return
             kw = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
             if WIN:

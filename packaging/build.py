@@ -619,7 +619,21 @@ def studio_deb(apps, slugs, pkg, frozen, outdir):
         """)
     for name, body in (("postinst", "update-desktop-database -q /usr/share/applications 2>/dev/null || true\n"
                                     "gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true\n" + pin),
-                       ("postrm", "update-desktop-database -q /usr/share/applications 2>/dev/null || true\n")):
+                       ("postrm", textwrap.dedent("""\
+                            if [ "$1" = remove ] || [ "$1" = purge ]; then
+                              # the program icons, file types and dock entries the Digonto installer made for each person
+                              for h in /home/* /root; do
+                                [ -d "$h/.local/share" ] || continue
+                                for f in "$h"/.local/share/applications/digonto-*.desktop; do
+                                  [ -f "$f" ] && grep -q "/opt/digonto/" "$f" && rm -f "$f"
+                                done
+                                rm -f "$h"/.local/share/applications/digonto-studio-setup.desktop
+                                rm -f "$h"/.local/share/icons/hicolor/*/apps/digonto-*.png "$h"/.local/share/mime/packages/digonto-*.xml
+                                [ -d "$h/.local/share/mime" ] && update-mime-database "$h/.local/share/mime" 2>/dev/null || true
+                              done
+                            fi
+                            update-desktop-database -q /usr/share/applications 2>/dev/null || true
+                            """))):
         p = os.path.join(deb, name)
         with open(p, "w") as f:
             f.write("#!/bin/sh\n" + body + "exit 0\n")
