@@ -70,6 +70,10 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: python -m pip install "dmgbuild>=1.6,<2"
+      - name: Fonts for Digonto Logo (the Google Fonts collection, pinned in logokit/data/fonts.json)
+        shell: bash
+        run: |
+          if [ -f src/digonto-logo/logokit/fetch_fonts.py ]; then python src/digonto-logo/logokit/fetch_fonts.py; fi
       - name: Offline AI (background removal helper for this system, plus the Apple-chip one on macOS)
         shell: bash
         env:
