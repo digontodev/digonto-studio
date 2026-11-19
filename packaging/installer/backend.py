@@ -646,7 +646,7 @@ def _linux_hide_setup():
     apps = os.path.expanduser("~/.local/share/applications")
     os.makedirs(apps, exist_ok=True)
     with open(os.path.join(apps, SETUP_DESKTOP), "w", encoding="utf-8") as f:
-        f.write("[Desktop Entry]\nType=Application\nName=Install Digonto\nNoDisplay=true\nExec=true\n")
+        f.write(f"[Desktop Entry]\nType=Application\nName=Install Digonto\nIcon={STUDIO}\nNoDisplay=true\nExec=true\n")
     favs = _linux_favorites()
     if favs and SETUP_DESKTOP in favs:
         _linux_set_favorites([x for x in favs if x != SETUP_DESKTOP])
@@ -665,8 +665,12 @@ def pin_studio(folder):
         quiet(["killall", "Dock"])
     elif not WIN:
         favs = _linux_favorites()
-        if favs is not None and f"{STUDIO}.desktop" not in favs:
-            _linux_set_favorites([x for x in favs if x != SETUP_DESKTOP] + [f"{STUDIO}.desktop"])
+        if favs is not None:
+            new = [x for x in favs if x != SETUP_DESKTOP]          # "Install Digonto" is done - out of the dock
+            if f"{STUDIO}.desktop" not in new:
+                new.append(f"{STUDIO}.desktop")
+            if new != list(favs):
+                _linux_set_favorites(new)
 
 
 def unpin_studio(folder):

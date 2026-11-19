@@ -602,6 +602,10 @@ def studio_deb(apps, slugs, pkg, frozen, outdir):
             """))
     # after installing: put "Install Digonto" in the dock of the person who is logged in (best effort)
     pin = textwrap.dedent("""\
+        # a new install shows "Install Digonto" again: remove the hidden copies an earlier install left behind
+        for f in /home/*/.local/share/applications/digonto-studio-setup.desktop /root/.local/share/applications/digonto-studio-setup.desktop; do
+          [ -f "$f" ] && grep -q "NoDisplay=true" "$f" && rm -f "$f"
+        done
         for s in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
           u=$(loginctl show-session "$s" -p Name --value 2>/dev/null); a=$(loginctl show-session "$s" -p Active --value 2>/dev/null)
           [ "$a" = "yes" ] && [ -n "$u" ] && [ "$u" != "root" ] || continue
