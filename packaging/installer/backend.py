@@ -583,20 +583,23 @@ def _linux_add(target, slug, c):
     exe = os.path.join(target, STUDIO)
     arg = "" if slug == STUDIO else f" --app {slug}"
     mt = list(c.get("mime") or [])
-    with open(os.path.join(apps, f"{slug}.desktop"), "w", encoding="utf-8") as f:
-        f.write("[Desktop Entry]\nType=Application\n"
-                f"Name={c['name']}\nComment={c.get('comment', '')}\n"
-                f'Exec="{exe}"{arg} %F\nIcon={slug}\nTerminal=false\n'
-                f"Categories={c.get('categories', 'Utility;')}\nKeywords={c.get('keywords', '')}\n"
-                f"StartupWMClass={c.get('wm_class', slug)}\n"
-                f"MimeType={';'.join(mt) + (';' if mt else '')}\n")
     src = os.path.join(apps_dir_of(target), slug, "assets")
+    icon = slug
     for size in (16, 24, 32, 48, 64, 128, 256, 512):
         p = os.path.join(src, f"{slug}-{size}.png")
         if os.path.isfile(p):
             d = os.path.expanduser(f"~/.local/share/icons/hicolor/{size}x{size}/apps")
             os.makedirs(d, exist_ok=True)
             shutil.copy2(p, os.path.join(d, f"{slug}.png"))
+            if size == 256:
+                icon = os.path.join(d, f"{slug}.png")     # a file, not a name: the name lookup can fail (black icon)
+    with open(os.path.join(apps, f"{slug}.desktop"), "w", encoding="utf-8") as f:
+        f.write("[Desktop Entry]\nType=Application\n"
+                f"Name={c['name']}\nComment={c.get('comment', '')}\n"
+                f'Exec="{exe}"{arg} %F\nIcon={icon}\nTerminal=false\n'
+                f"Categories={c.get('categories', 'Utility;')}\nKeywords={c.get('keywords', '')}\n"
+                f"StartupWMClass={c.get('wm_class', slug)}\n"
+                f"MimeType={';'.join(mt) + (';' if mt else '')}\n")
     own = [m for m in mt if m.startswith("application/x-digonto")]
     if own and c.get("extensions"):
         d = os.path.expanduser("~/.local/share/mime/packages")
@@ -646,7 +649,9 @@ def _linux_hide_setup():
     apps = os.path.expanduser("~/.local/share/applications")
     os.makedirs(apps, exist_ok=True)
     with open(os.path.join(apps, SETUP_DESKTOP), "w", encoding="utf-8") as f:
-        f.write(f"[Desktop Entry]\nType=Application\nName=Install Digonto\nIcon={STUDIO}\nNoDisplay=true\nExec=true\n")
+        icon = f"/usr/share/icons/hicolor/256x256/apps/{STUDIO}.png"     # a file, not a name: the name lookup can fail
+        f.write(f"[Desktop Entry]\nType=Application\nName=Install Digonto\nIcon={icon if os.path.isfile(icon) else STUDIO}\n"
+                "NoDisplay=true\nExec=true\n")
     favs = _linux_favorites()
     if favs and SETUP_DESKTOP in favs:
         _linux_set_favorites([x for x in favs if x != SETUP_DESKTOP])

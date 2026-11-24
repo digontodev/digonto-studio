@@ -564,7 +564,7 @@ def studio_deb(apps, slugs, pkg, frozen, outdir):
             Name=Install Digonto
             Comment=Choose which Digonto programs to install
             Exec={exe} --welcome
-            Icon={pkg}
+            Icon=/usr/share/icons/hicolor/256x256/apps/{pkg}.png
             Terminal=false
             Categories=System;Settings;
             StartupWMClass={pkg}
@@ -618,6 +618,7 @@ def studio_deb(apps, slugs, pkg, frozen, outdir):
         done
         """)
     for name, body in (("postinst", "update-desktop-database -q /usr/share/applications 2>/dev/null || true\n"
+                                    "touch /usr/share/icons/hicolor 2>/dev/null || true\n"
                                     "gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true\n" + pin),
                        ("postrm", textwrap.dedent("""\
                             if [ "$1" = remove ] || [ "$1" = purge ]; then
